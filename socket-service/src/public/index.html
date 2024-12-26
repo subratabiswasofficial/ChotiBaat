@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Beautiful Chat UI</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #252525;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      .chat-container {
+        width: 350px;
+        height: 600px;
+        background: #25252562;
+        border-radius: 15px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .chat-header {
+        background: #4a90e2;
+        color: #fff;
+        padding: 15px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 18px;
+      }
+
+      .chat-messages {
+        flex: 1;
+        padding: 15px;
+        overflow-y: auto;
+        background: #272424;
+      }
+
+      .message {
+        margin-bottom: 15px;
+        max-width: 70%;
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .message.sent {
+        justify-content: flex-end;
+      }
+
+      .message.received {
+        justify-content: flex-start;
+      }
+
+      .message .bubble {
+        padding: 10px 15px;
+        border-radius: 20px;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .message.sent .bubble {
+        background: #4a90e2;
+        color: #fff;
+        border-bottom-right-radius: 0;
+      }
+
+      .message.received .bubble {
+        background: #eaeaea;
+        color: #333;
+        border-bottom-left-radius: 0;
+      }
+
+      .chat-input {
+        display: flex;
+        border-top: 1px solid #ddd;
+        background: #fff;
+        padding: 10px;
+      }
+
+      .chat-input input {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: 20px;
+        background: #f5f5f5;
+        margin-right: 10px;
+        font-size: 14px;
+        outline: none;
+      }
+
+      .chat-input button {
+        padding: 10px 15px;
+        background: #4a90e2;
+        color: #fff;
+        border: none;
+        border-radius: 20px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+
+      .chat-input button:hover {
+        background: #357ab8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chat-container">
+      <div class="chat-header">Chat with Us</div>
+      <div class="chat-messages" id="messages">
+        <div class="message sent">
+          <div class="bubble">Hi there! How can I help you today?</div>
+        </div>
+        <div class="message received">
+          <div class="bubble">
+            Hello! I need some assistance with my account.
+          </div>
+        </div>
+        <div class="message sent">
+          <div class="bubble">Sure, can you tell me more about the issue?</div>
+        </div>
+      </div>
+      <div class="chat-input">
+        <input
+          type="text"
+          id="userMessage"
+          placeholder="Type your message..."
+        />
+        <button id="sendBtn">Send</button>
+      </div>
+    </div>
+
+    <script></script>
+
+    <script type="module">
+      import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+      const socket = io();
+      socket.on("connect", () => {
+        // ...
+        console.log("ui connected");
+      });
+      socket.on("disconnect", () => {
+        // ...
+        console.log("ui diconnected");
+      });
+
+      socket.on("message", (data) => {
+        /* ... */
+        receiveMessage(data);
+      });
+
+      const sendButton = document.getElementById("sendBtn");
+      const messageInput = document.getElementById("userMessage");
+      const messagesContainer = document.getElementById("messages");
+
+      // Function to send a message
+      function sendMessage() {
+        const messageText = messageInput.value.trim();
+        if (messageText) {
+          socket.emit("message", messageText);
+          // Create sent message bubble
+          const messageDiv = document.createElement("div");
+          messageDiv.classList.add("message", "sent");
+          const bubbleDiv = document.createElement("div");
+          bubbleDiv.classList.add("bubble");
+          bubbleDiv.textContent = messageText;
+          messageDiv.appendChild(bubbleDiv);
+          messagesContainer.appendChild(messageDiv);
+
+          // Clear input field after sending
+          messageInput.value = "";
+
+          // Auto-scroll to the bottom
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+          // Simulate received message after a short delay
+          setTimeout(receiveMessage, 1000);
+        }
+      }
+
+      // Function to simulate receiving a message
+      function receiveMessage(
+        receivedMessageText = "This is an automated reply."
+      ) {
+        const messageDiv = document.createElement("div");
+        messageDiv.classList.add("message", "received");
+        const bubbleDiv = document.createElement("div");
+        bubbleDiv.classList.add("bubble");
+        bubbleDiv.textContent = receivedMessageText;
+        messageDiv.appendChild(bubbleDiv);
+        messagesContainer.appendChild(messageDiv);
+
+        // Auto-scroll to the bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+
+      // Send message on button click
+      sendButton.addEventListener("click", sendMessage);
+
+      // Optionally, allow sending message by pressing Enter key
+      messageInput.addEventListener("keypress", function (event) {
+        if (event.key === "Enter") {
+          sendMessage();
+        }
+      });
+    </script>
+  </body>
+</html>

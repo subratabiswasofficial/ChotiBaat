@@ -1,0 +1,38 @@
+version: '3.7'
+
+services:
+  socket-service-instance-1:
+    build: 
+      context: ./socket-service
+    ports:
+      - "3000:3000"
+    environment:
+      - ID=0
+      - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./socket-service:/usr/src/app
+    depends_on:
+      - redis
+
+  socket-service-instance2:
+    build:
+      context: ./socket-service
+    ports:
+      - "3001:3001"
+    environment:
+      - ID=1
+      - PORT=3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./socket-service:/usr/src/app
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:latest
+    container_name: redis-server-2
+    ports:
+      - "6379:6379"
