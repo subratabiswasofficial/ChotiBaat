@@ -1,76 +1,140 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
-import { createClient } from "redis";
-import path from "path";
+import {
+  getUserSession,
+  publishEvent,
+  registerUserSession,
+  removeUserSession,
+  subscribeEvent,
+} from "./redis-client/index.js";
+import { parseUerInfoFromSocket } from "./util.js";
+
+import EventEmitter from "node:events";
+const eventEmitter = new EventEmitter();
+
+const server_id = process.env.SERVER_ID || "0";
+const server_mark = `[Server ${server_id}]: `;
 
 async function main() {
   const app = express();
-  app.use(express.static(path.join(".", "public")));
-  app.get("/", (req, res) => {
-    res.sendFile(path.join(".", "public", "index.html"));
-  });
-
   const server = http.createServer(app);
   const io = new Server(server);
 
-  const client = await createClient({
-    socket: {
-      host: process.env.REDIS_HOST || "localhost",
-    },
-  })
-    .on("connect", () => {
-      console.log("Redis server connected");
-    })
-    .on("error", (err) => console.log("Redis Client Error", err))
-    .connect();
-
-  const publisher = client.duplicate();
-  await publisher.connect();
-  const subscriber = client.duplicate();
-  await subscriber.connect();
-  const server_id = process.env.ID;
-
-  let connections = [];
+  const connections = {};
+  const messageDeliveredMap = {};
 
   io.on("connection", async (socket) => {
-    console.log("A user connected", socket.id);
-    // await client.set(`U:${socket.id}`, `S:${server_id}`);
+    /* register user on redis */
+    const userInfo = parseUerInfoFromSocket(socket);
+    if (userInfo != null)
+      await registerUserSession(userInfo.user_id, server_id, socket.id);
+    else return;
+    /* add socket connection */
+    connections[socket.id] = socket;
+    /* log connected user id */
+    console.log(server_mark + "New user connected", socket.id);
 
-    connections.push(socket);
+    socket.on("message", async (data, cb) => {
+      if (data?.to != null && data?.text != null && data?.from != null) {
+        data.mid = `${Math.round(Math.random() * 100000, 0)}-${Date.now()}`;
+        const messageToBePubliushed = JSON.stringify(data);
+        const userSession = await getUserSession(data.to);
 
-    socket.on("message", async (data) => {
-      await publisher.publish(`S:${server_id == "0" ? "1" : "0"}`, data);
-
-      // connections.forEach((other_socket: { id: string; emit: any }) => {
-      //   if (other_socket.id != socket.id) {
-      //     other_socket.emit("message", "[message]: " + data);
-      //   }
-      // });
+        if (userSession != null) {
+          if (connections[userSession.socket_id] != null) {
+            await connections[userSession.socket_id].emit("message", {
+              from: data.from,
+              text: data.text,
+            });
+            cb({
+              status: "ok",
+            });
+          } else {
+            await publishEvent(
+              `server:${userSession.server_id}:message`,
+              `${userSession.socket_id}:${messageToBePubliushed}`
+            );
+            let clearAckEvent = true;
+            eventEmitter.on(`ack:message:${data.mid}`, () => {
+              cb({
+                staus: "ok",
+              });
+              clearAckEvent = false;
+              eventEmitter.off(`ack:message:${data.mid}`, () => {});
+            });
+            if (clearAckEvent) {
+              setTimeout(() => {
+                eventEmitter.off(`ack:message:${data.mid}`, () => {});
+              }, 1000);
+            }
+          }
+        } else {
+        }
+      }
     });
 
-    await subscriber.subscribe(`S:${server_id}`, async (data) => {
-      // console.log(connections.map((socket) => socket));
+    subscribeEvent(`server:${server_id}:message`, async (data) => {
+      const receiverSocketId = data.split(":")[0];
+      const receiverMessageStr = data.slice(receiverSocketId.length + 1);
+      const receiverMessage = JSON.parse(receiverMessageStr);
+      if (connections[receiverSocketId] != null) {
+        await connections[receiverSocketId].emit("message", {
+          from: receiverMessage.from,
+          text: receiverMessage.text,
+        });
+        /* add delivery call */
+        const userSession = await getUserSession(receiverMessage.from);
+        if (userSession != null) {
+          console.log(server_mark + "sending receiver ack");
 
-      connections.forEach((other_socket) => {
-        console.log(data);
-
-        other_socket.emit(
-          "message",
-          `[message from server ${server_id == "0" ? "1" : "0"}]: ` + data
-        );
-      });
+          await publishEvent(
+            `server:${userSession.server_id}:message:ack`,
+            receiverMessage.mid
+          );
+        } else {
+          /* add relay serice */
+        }
+      } else {
+        /* add relay */
+      }
     });
+
+    subscribeEvent(`server:${server_id}:message:ack`, async (mid) => {
+      messageDeliveredMap[mid] = Date.now();
+      console.log(server_mark + mid);
+
+      eventEmitter.emit(`ack:message:${mid}`);
+    });
+
+    // setInterval(() => {
+    //   const currentTime = Date.now();
+    //   const expiredMids = [];
+    //   Object.entries(messageDeliveredMap).forEach(([mid, tstamp]) => {
+    //     if (currentTime - tstamp > 2 * 1000) {
+    //       expiredMids.push(mid);
+    //     }
+    //   });
+    //   expiredMids.forEach((mid) => {
+    //     console.log("Expired mid", mid);
+    //     delete messageDeliveredMap[mid];
+    //   });
+    // }, 1000);
 
     socket.on("disconnect", async () => {
-      console.log("user disconnected");
-      // await client.del(`U:${socket.id}`);
-      connections = connections.filter((socket) => socket.connected == true);
+      if (userInfo != null) await removeUserSession(userInfo.user_id);
+      /* log disconnected user id */
+      console.log(server_mark + "A user disconnected", socket.id);
+      /* filter connection array */
+      delete connections[socket.id];
     });
   });
 
   server.listen(process.env.PORT || 4000, () => {
-    console.log("Server running at port", process.env.PORT || 4000);
+    console.log(
+      server_mark + "Server running at port",
+      process.env.PORT || 4000
+    );
   });
 }
 

@@ -7,7 +7,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - ID=0
+      - SERVER_ID=0
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -22,7 +22,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - ID=1
+      - SERVER_ID=1
       - PORT=3001
       - REDIS_HOST=redis
       - REDIS_PORT=6379
