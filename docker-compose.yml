@@ -1,17 +1,17 @@
 version: '3.7'
 
 services:
-  socket-client-test:
-    build:
-      context: ./socket-client
-    volumes:
-      - ./socket-client:/usr/src/app
-    environment:
-      - SOCKET_HOST=socket-service-instance-1
-      - SOCKET_PORT=3000
-    depends_on:
-      - socket-service-instance-1
-      - redis
+  # socket-client-test:
+  #   build:
+  #     context: ./socket-client
+  #   volumes:
+  #     - ./socket-client:/usr/src/app
+  #   environment:
+  #     - SOCKET_HOST=socket-service-instance-1
+  #     - SOCKET_PORT=3000
+  #   depends_on:
+  #     - socket-service-instance-1
+  #     - redis
 
   socket-service-instance-1:
     build: 
@@ -27,6 +27,7 @@ services:
       - ./socket-service:/usr/src/app
     depends_on:
       - redis
+      - mysql-server
 
   # socket-service-instance-2:
   #   build:
@@ -48,3 +49,11 @@ services:
     container_name: redis-server-2
     ports:
       - "6379:6379"
+  
+  mysql-server:
+    image: mysql:latest
+    container_name: mysql-server
+    environment:
+      - MYSQL_ROOT_PASSWORD=12345678
+    ports:
+      - "3306:3306"
