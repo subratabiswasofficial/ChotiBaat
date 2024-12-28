@@ -21,19 +21,23 @@ async function main() {
   const server = http.createServer(app);
   const io = new Server(server);
 
+  let totalConnections = 0;
   const connections = {};
   const messageDeliveredMap = {};
 
   io.on("connection", async (socket) => {
+    /* log connected user id */
+    // console.log(server_mark + "New user connected", socket.id);
+    console.log(server_mark + "User Count", ++totalConnections);
     /* register user on redis */
     const userInfo = parseUerInfoFromSocket(socket);
     if (userInfo != null)
       await registerUserSession(userInfo.user_id, server_id, socket.id);
     else return;
+
     /* add socket connection */
     connections[socket.id] = socket;
-    /* log connected user id */
-    console.log(server_mark + "New user connected", socket.id);
+    // console.log(server_mark + "Total user connected", ++totalConnections);
 
     socket.on("message", async (data, cb) => {
       if (data?.to != null && data?.text != null && data?.from != null) {
@@ -86,8 +90,6 @@ async function main() {
         /* add delivery call */
         const userSession = await getUserSession(receiverMessage.from);
         if (userSession != null) {
-          console.log(server_mark + "sending receiver ack");
-
           await publishEvent(
             `server:${userSession.server_id}:message:ack`,
             receiverMessage.mid
@@ -102,8 +104,6 @@ async function main() {
 
     subscribeEvent(`server:${server_id}:message:ack`, async (mid) => {
       messageDeliveredMap[mid] = Date.now();
-      console.log(server_mark + mid);
-
       eventEmitter.emit(`ack:message:${mid}`);
     });
 
@@ -122,9 +122,12 @@ async function main() {
     // }, 1000);
 
     socket.on("disconnect", async () => {
-      if (userInfo != null) await removeUserSession(userInfo.user_id);
       /* log disconnected user id */
-      console.log(server_mark + "A user disconnected", socket.id);
+      // console.log(server_mark + "A user disconnected", socket.id);
+      --totalConnections;
+      console.log(server_mark + "User Count", totalConnections);
+
+      if (userInfo != null) await removeUserSession(userInfo.user_id);
       /* filter connection array */
       delete connections[socket.id];
     });

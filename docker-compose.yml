@@ -1,6 +1,18 @@
 version: '3.7'
 
 services:
+  socket-client-test:
+    build:
+      context: ./socket-client
+    volumes:
+      - ./socket-client:/usr/src/app
+    environment:
+      - SOCKET_HOST=socket-service-instance-1
+      - SOCKET_PORT=3000
+    depends_on:
+      - socket-service-instance-1
+      - redis
+
   socket-service-instance-1:
     build: 
       context: ./socket-service
@@ -16,20 +28,20 @@ services:
     depends_on:
       - redis
 
-  socket-service-instance2:
-    build:
-      context: ./socket-service
-    ports:
-      - "3001:3001"
-    environment:
-      - SERVER_ID=1
-      - PORT=3001
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    volumes:
-      - ./socket-service:/usr/src/app
-    depends_on:
-      - redis
+  # socket-service-instance-2:
+  #   build:
+  #     context: ./socket-service
+  #   ports:
+  #     - "3001:3001"
+  #   environment:
+  #     - SERVER_ID=1
+  #     - PORT=3001
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #   volumes:
+  #     - ./socket-service:/usr/src/app
+  #   depends_on:
+  #     - redis
 
   redis:
     image: redis:latest
